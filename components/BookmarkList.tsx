@@ -15,8 +15,9 @@ export default function BookmarkList() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const supabase = createClient();
+
     const fetchBookmarks = async () => {
-      const supabase = createClient();
       const { data } = await supabase
         .from("bookmarks")
         .select("*")
@@ -27,12 +28,37 @@ export default function BookmarkList() {
     };
 
     fetchBookmarks();
+
+    // Subscribe to real-time changes on the bookmarks table
+    const channel = supabase
+      .channel("bookmarks-changes")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "bookmarks" },
+        (payload) => {
+          setBookmarks((prev) => [payload.new as Bookmark, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "bookmarks" },
+        (payload) => {
+          setBookmarks((prev) =>
+            prev.filter((b) => b.id !== payload.old.id)
+          );
+        }
+      )
+      .subscribe();
+
+    // Cleanup: unsubscribe when component unmounts
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleDelete = async (id: string) => {
     const supabase = createClient();
     await supabase.from("bookmarks").delete().eq("id", id);
-    setBookmarks((prev) => prev.filter((b) => b.id !== id));
   };
 
   if (loading) {
