@@ -1,13 +1,6 @@
 import AuthButton from "@/components/AuthButton";
-import AuthError from "@/components/AuthError";
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-
+export default function Home() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="text-center px-6">
@@ -19,7 +12,6 @@ export default async function Home({
           Save, organize, and access your favorite links — synced in real time
           across all your devices.
         </p>
-        {error && <AuthError message={error} />}
         <AuthButton />
       </div>
     </div>
