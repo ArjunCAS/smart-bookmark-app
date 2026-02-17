@@ -29,9 +29,6 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: Do NOT use getSession() here. getUser() sends a request to the
-  // Supabase Auth server every time to revalidate the Auth token, while
-  // getSession() reads from local storage and may return stale data.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -42,13 +39,21 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirect.cookies.set(cookie.name, cookie.value);
+    });
+    return redirect;
   }
 
   if (user && request.nextUrl.pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirect.cookies.set(cookie.name, cookie.value);
+    });
+    return redirect;
   }
 
   return supabaseResponse;
