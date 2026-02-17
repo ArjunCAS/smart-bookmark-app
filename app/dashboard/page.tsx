@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import BookmarkForm from "@/components/BookmarkForm";
 import BookmarkList from "@/components/BookmarkList";
 import type { User } from "@supabase/supabase-js";
@@ -19,14 +19,12 @@ export default function Dashboard() {
       const { data } = await supabase.auth.getUser();
       if (data.user) {
         setUser(data.user);
-      } else {
-        router.push("/");
       }
       setLoading(false);
     };
 
     getUser();
-  }, [router]);
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();
