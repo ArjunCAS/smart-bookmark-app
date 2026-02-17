@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import BookmarkForm from "@/components/BookmarkForm";
+import BookmarkList from "@/components/BookmarkList";
 import type { User } from "@supabase/supabase-js";
 
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const supabase = createClient();
 
   useEffect(() => {
     const getUser = async () => {
+      const supabase = createClient();
       const { data } = await supabase.auth.getUser();
       if (data.user) {
         setUser(data.user);
@@ -23,9 +25,10 @@ export default function Dashboard() {
     };
 
     getUser();
-  }, []);
+  }, [router]);
 
   const handleSignOut = async () => {
+    const supabase = createClient();
     await supabase.auth.signOut();
     router.push("/");
   };
@@ -56,7 +59,8 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <p className="text-gray-500">Bookmarks will go here...</p>
+        <BookmarkForm />
+        <BookmarkList />
       </main>
     </div>
   );
