@@ -10,38 +10,64 @@ interface Bookmark {
   created_at: string;
 }
 
-export default function BookmarkList() {
+interface BookmarkListProps {
+  userId?: string;
+  refreshKey: number;
+}
+
+export default function BookmarkList({ userId, refreshKey }: BookmarkListProps) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const fetchBookmarks = async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("bookmarks")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (data) setBookmarks(data);
+    setLoading(false);
+  };
+
+  // Fetch bookmarks on mount and whenever refreshKey changes
   useEffect(() => {
+    fetchBookmarks();
+  }, [refreshKey]);
+
+  // Real-time subscription for cross-tab sync
+  useEffect(() => {
+    if (!userId) return;
+
     const supabase = createClient();
 
-    const fetchBookmarks = async () => {
-      const { data } = await supabase
-        .from("bookmarks")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (data) setBookmarks(data);
-      setLoading(false);
-    };
-
-    fetchBookmarks();
-
-    // Subscribe to real-time changes on the bookmarks table
     const channel = supabase
       .channel("bookmarks-changes")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "bookmarks" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "bookmarks",
+          filter: `user_id=eq.${userId}`,
+        },
         (payload) => {
-          setBookmarks((prev) => [payload.new as Bookmark, ...prev]);
+          setBookmarks((prev) => {
+            const exists = prev.some((b) => b.id === (payload.new as Bookmark).id);
+            if (exists) return prev;
+            return [payload.new as Bookmark, ...prev];
+          });
         }
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "bookmarks" },
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "bookmarks",
+          filter: `user_id=eq.${userId}`,
+        },
         (payload) => {
           setBookmarks((prev) =>
             prev.filter((b) => b.id !== payload.old.id)
@@ -50,48 +76,65 @@ export default function BookmarkList() {
       )
       .subscribe();
 
-    // Cleanup: unsubscribe when component unmounts
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [userId]);
 
   const handleDelete = async (id: string) => {
+    if (deletingId) return;
+    setDeletingId(id);
+    setBookmarks((prev) => prev.filter((b) => b.id !== id));
     const supabase = createClient();
     await supabase.from("bookmarks").delete().eq("id", id);
+    setDeletingId(null);
   };
 
   if (loading) {
-    return <p className="text-gray-500">Loading bookmarks...</p>;
+    return (
+      <div className="text-center py-12">
+        <div className="w-6 h-6 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+        <p className="text-sm text-gray-400">Loading bookmarks...</p>
+      </div>
+    );
   }
 
   if (bookmarks.length === 0) {
-    return <p className="text-gray-500">No bookmarks yet. Add one above!</p>;
+    return (
+      <div className="text-center py-16">
+        <div className="text-4xl mb-3">📭</div>
+        <p className="text-gray-500 font-medium">No bookmarks yet</p>
+        <p className="text-sm text-gray-400 mt-1">Add your first bookmark above to get started.</p>
+      </div>
+    );
   }
 
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-2">
       {bookmarks.map((bookmark) => (
         <li
           key={bookmark.id}
-          className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+          className={`flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4 hover:shadow-sm transition-all ${deletingId === bookmark.id ? "opacity-50 pointer-events-none" : ""}`}
         >
-          <div>
+          <div className="min-w-0 flex-1">
             <a
               href={bookmark.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 font-medium hover:underline"
+              className="text-gray-900 font-medium hover:text-blue-600 transition-colors"
             >
               {bookmark.title}
             </a>
-            <p className="text-sm text-gray-400 mt-1">{bookmark.url}</p>
+            <p className="text-sm text-gray-400 mt-0.5 truncate">{bookmark.url}</p>
           </div>
           <button
             onClick={() => handleDelete(bookmark.id)}
-            className="text-red-500 hover:text-red-700 text-sm ml-4"
+            className="text-gray-400 hover:text-red-500 transition-colors ml-4 cursor-pointer"
+            title="Delete bookmark"
           >
-            Delete
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
           </button>
         </li>
       ))}
