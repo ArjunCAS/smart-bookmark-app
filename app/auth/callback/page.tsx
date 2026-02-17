@@ -8,26 +8,21 @@ export default function AuthCallback() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleCallback = async () => {
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
+    const supabase = createClient();
 
-      if (!code) {
-        router.push("/");
-        return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event) => {
+        if (event === "SIGNED_IN") {
+          router.push("/dashboard");
+        } else if (event === "SIGNED_OUT") {
+          router.push("/");
+        }
       }
+    );
 
-      const supabase = createClient();
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-      if (error) {
-        router.push("/");
-      } else {
-        router.push("/dashboard");
-      }
+    return () => {
+      subscription.unsubscribe();
     };
-
-    handleCallback();
   }, [router]);
 
   return (
