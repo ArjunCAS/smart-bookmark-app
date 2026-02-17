@@ -13,62 +13,49 @@ export default function AuthCallback() {
       try {
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
-        const accessToken = params.get("access_token");
-        const refreshToken = params.get("refresh_token");
+        const accessToken = params.get("access_token")?.replace(/[\r\n\s]/g, "");
+        const refreshToken = params.get("refresh_token")?.replace(/[\r\n\s]/g, "");
 
         if (!accessToken || !refreshToken) {
           setDebugInfo("No tokens found in URL hash");
           return;
         }
 
-        setDebugInfo(
-          `Token length: ${accessToken.length}\n` +
-          `Token first 30: ${accessToken.substring(0, 30)}\n` +
-          `Token last 10: ${accessToken.substring(accessToken.length - 10)}\n` +
-          `Has invalid chars: ${/[^\w\-._~+/=]/.test(accessToken)}\n` +
-          `Refresh token length: ${refreshToken.length}\n\n` +
-          `Testing raw fetch...`
+        const cleanKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!.replace(/[\r\n\s]/g, "");
+
+        setDebugInfo(`Testing with cleaned values...\nKey length: ${cleanKey.length}\nToken length: ${accessToken.length}`);
+
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/[\r\n\s]/g, "")}/auth/v1/user`,
+          {
+            headers: {
+              apikey: cleanKey,
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
         );
 
-        // Test 1: raw fetch with just apikey
-        try {
-          const res1 = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user`,
-            {
-              headers: {
-                apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-                Authorization: `Bearer ${accessToken}`,
-              },
-            }
-          );
-          setDebugInfo((prev) => prev + `\nRaw fetch status: ${res1.status}`);
+        setDebugInfo((prev) => prev + `\nFetch status: ${res.status}`);
 
-          if (res1.ok) {
-            // Token works! Now set session
-            const supabase = createClient();
-            const { error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
+        if (res.ok) {
+          const supabase = createClient();
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
 
-            if (error) {
-              setDebugInfo((prev) => prev + `\nsetSession error: ${error.message}`);
-            } else {
-              setDebugInfo((prev) => prev + `\nSession set! Redirecting...`);
-              router.push("/dashboard");
-            }
+          if (!error) {
+            router.push("/dashboard");
           } else {
-            const body = await res1.text();
-            setDebugInfo((prev) => prev + `\nRaw fetch body: ${body}`);
+            setDebugInfo((prev) => prev + `\nsetSession error: ${error.message}`);
           }
-        } catch (fetchErr) {
-          setDebugInfo(
-            (prev) => prev + `\nRaw fetch error: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`
-          );
+        } else {
+          const body = await res.text();
+          setDebugInfo((prev) => prev + `\nResponse: ${body}`);
         }
       } catch (err) {
         setDebugInfo(
-          (prev) => prev + `\nOuter error: ${err instanceof Error ? err.message : String(err)}`
+          (prev) => prev + `\nError: ${err instanceof Error ? err.message : String(err)}`
         );
       }
     };
