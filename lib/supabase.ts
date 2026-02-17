@@ -13,6 +13,7 @@ export function createClient(): SupabaseClient<any> {
     {
       auth: {
         flowType: "implicit",
+        detectSessionInUrl: false,
       },
     }
   );
